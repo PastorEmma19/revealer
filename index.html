@@ -7,131 +7,114 @@
   <meta name="description" content="Flip cards to pair Bible verses with their references. A memory match for kids and families." />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,600;0,700;1,600&family=Nunito:wght@600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,700;1,9..144,500;1,9..144,600&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div class="sky" aria-hidden="true">
-    <div class="glow glow-a"></div>
-    <div class="glow glow-b"></div>
-    <div class="stars" id="stars"></div>
+  <div class="room" aria-hidden="true">
+    <div class="plaster"></div>
+    <div class="cloth"></div>
+    <div id="stars" hidden></div>
   </div>
 
   <main class="app">
     <header class="topbar">
       <button class="brand" id="brandBtn" type="button" aria-label="Back to home">
-        <span class="brand-mark" aria-hidden="true">✦</span>
+        <span class="monogram" aria-hidden="true">R</span>
         <div>
           <h1>Revealer</h1>
-          <p class="tagline">Match the verse to its home</p>
+          <p class="tagline">A Scripture memory match</p>
         </div>
       </button>
       <div class="hud" id="hud" hidden>
-        <div class="stat">
-          <span class="stat-label">Level</span>
-          <span class="stat-value" id="hudLevel">1</span>
-        </div>
-        <div class="stat">
-          <span class="stat-label">Moves</span>
-          <span class="stat-value" id="moves">0</span>
-        </div>
-        <div class="stat">
-          <span class="stat-label">Pairs</span>
-          <span class="stat-value" id="pairs">0/0</span>
-        </div>
-        <div class="stat">
-          <span class="stat-label">Time</span>
-          <span class="stat-value" id="timer">0:00</span>
-        </div>
+        <div class="stat"><span class="stat-label">Level</span><span class="stat-value" id="hudLevel">1</span></div>
+        <div class="stat"><span class="stat-label">Moves</span><span class="stat-value" id="moves">0</span></div>
+        <div class="stat"><span class="stat-label">Pairs</span><span class="stat-value" id="pairs">0/0</span></div>
+        <div class="stat"><span class="stat-label">Time</span><span class="stat-value" id="timer">0:00</span></div>
       </div>
     </header>
 
     <section class="screen" id="home" aria-label="Start">
-      <div class="hero-card">
-        <p class="eyebrow">A Scripture memory game</p>
-        <h2>Flip. Pair. Remember.</h2>
+      <div class="box-lid">
+        <div class="lid-rule" aria-hidden="true"></div>
+        <p class="kicker">For the family table</p>
+        <h2>Find the home<br>of each verse.</h2>
         <p class="lead">
-          Two cards at a time. One holds a verse, the other holds its reference.
-          When they belong together, the Word stays revealed.
+          One card carries the words. The other carries the address.
+          Flip two. When they belong together, they stay open.
         </p>
-        <div class="how">
-          <div class="how-item"><span>1</span> Flip two cards</div>
-          <div class="how-item"><span>2</span> Match verse + reference</div>
-          <div class="how-item"><span>3</span> Clear the board</div>
-        </div>
+        <ol class="rules">
+          <li>Turn two cards</li>
+          <li>Pair verse with reference</li>
+          <li>Clear the cloth</li>
+        </ol>
         <fieldset class="levels">
-          <legend>Choose a level</legend>
-          <button class="level-btn" data-level="1" type="button">
-            <span class="lvl-num">1</span>
-            <span>
+          <legend>Choose a table</legend>
+          <div class="level-grid">
+            <button class="level-tile" data-level="1" type="button">
+              <span class="tile-n">I</span>
               <strong>Little Lights</strong>
-              <em>3 pairs · peek · for young children</em>
-            </span>
-          </button>
-          <button class="level-btn" data-level="2" type="button">
-            <span class="lvl-num">2</span>
-            <span>
+              <em>3 pairs · a peek</em>
+            </button>
+            <button class="level-tile" data-level="2" type="button">
+              <span class="tile-n">II</span>
               <strong>Pathfinders</strong>
-              <em>4 pairs · short peek</em>
-            </span>
-          </button>
-          <button class="level-btn" data-level="3" type="button">
-            <span class="lvl-num">3</span>
-            <span>
-              <strong>Keepers of the Word</strong>
+              <em>4 pairs · brief peek</em>
+            </button>
+            <button class="level-tile" data-level="3" type="button">
+              <span class="tile-n">III</span>
+              <strong>Keepers</strong>
               <em>6 pairs · no peek</em>
-            </span>
-          </button>
-          <button class="level-btn" data-level="4" type="button">
-            <span class="lvl-num">4</span>
-            <span>
+            </button>
+            <button class="level-tile" data-level="4" type="button">
+              <span class="tile-n">IV</span>
               <strong>Watchmen</strong>
-              <em>8 pairs · sharp memory</em>
-            </span>
-          </button>
-          <button class="level-btn" data-level="5" type="button">
-            <span class="lvl-num">5</span>
-            <span>
+              <em>8 pairs</em>
+            </button>
+            <button class="level-tile" data-level="5" type="button">
+              <span class="tile-n">V</span>
               <strong>Scribes</strong>
-              <em>10 pairs · the full table</em>
-            </span>
-          </button>
+              <em>10 pairs</em>
+            </button>
+          </div>
         </fieldset>
         <p class="bests" id="bests"></p>
       </div>
     </section>
 
     <section class="screen" id="play" hidden>
-      <p class="peek-banner" id="peekBanner" hidden>Look closely… then the cards will hide.</p>
+      <p class="peek-banner" id="peekBanner" hidden>Hold the picture. The cards will turn back over.</p>
       <div class="board" id="board" role="grid" aria-label="Memory board"></div>
       <div class="play-actions">
         <button class="ghost" id="hintBtn" type="button">Hint</button>
-        <button class="ghost" id="restartBtn" type="button">New board</button>
-        <button class="ghost" id="homeBtn" type="button">Levels</button>
+        <button class="ghost" id="restartBtn" type="button">New deal</button>
+        <button class="ghost" id="homeBtn" type="button">Tables</button>
       </div>
     </section>
 
     <section class="screen" id="win" hidden>
-      <div class="win-card">
-        <p class="eyebrow" id="winEyebrow">All pairs revealed</p>
-        <h2 id="winTitle">Well done.</h2>
-        <p class="win-verse" id="winVerse"></p>
-        <p class="win-ref" id="winRef"></p>
+      <div class="certificate">
+        <p class="kicker" id="winEyebrow">All pairs revealed</p>
+        <h2 id="winTitle">The cloth is clear.</h2>
+        <blockquote class="win-quote">
+          <p class="win-verse" id="winVerse"></p>
+          <cite class="win-ref" id="winRef"></cite>
+        </blockquote>
         <dl class="win-stats">
           <div><dt>Moves</dt><dd id="winMoves">0</dd></div>
           <div><dt>Time</dt><dd id="winTime">0:00</dd></div>
           <div><dt>Best</dt><dd id="winBest">—</dd></div>
         </dl>
         <div class="win-actions">
-          <button class="level-btn solid" id="nextLevel" type="button">Next level</button>
-          <button class="ghost" id="playAgain" type="button">Play this level again</button>
-          <button class="ghost" id="winHome" type="button">Choose another level</button>
+          <button class="solid" id="nextLevel" type="button">Next table</button>
+          <button class="ghost" id="playAgain" type="button">Deal this table again</button>
+          <button class="ghost" id="winHome" type="button">Choose another table</button>
         </div>
       </div>
     </section>
   </main>
 
-  <footer class="foot">Made for families who hide the Word in little hearts.</footer>
+  <footer class="foot">Printed for families who hide the Word in little hearts.</footer>
   <script src="game.js"></script>
 </body>
 </html>
