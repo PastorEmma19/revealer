@@ -20,7 +20,6 @@ const VERSES = [
   { id: "gal522", ref: "Galatians 5:22", text: "The fruit of the Spirit is love, joy, peace." },
   { id: "1jn48", ref: "1 John 4:8", text: "God is love." }
 ];
-
 const LEVELS = {
   1: { pairs: 3, peek: 5000, hints: 3, cols: 3, label: "Little Lights" },
   2: { pairs: 4, peek: 3000, hints: 2, cols: 4, label: "Pathfinders" },
@@ -28,308 +27,39 @@ const LEVELS = {
   4: { pairs: 8, peek: 0, hints: 1, cols: 4, label: "Watchmen" },
   5: { pairs: 10, peek: 0, hints: 1, cols: 5, label: "Scribes" }
 };
-
-const state = {
-  gen: 0, level: 1, deck: [], flipped: [], matched: new Set(),
-  lock: false, moves: 0, startedAt: 0, timerId: null, peekId: null,
-  resolveId: null, watchdogId: null, seconds: 0, hintsLeft: 0, over: false
-};
-
-const els = {
-  home: document.getElementById("home"),
-  play: document.getElementById("play"),
-  win: document.getElementById("win"),
-  board: document.getElementById("board"),
-  hud: document.getElementById("hud"),
-  hudLevel: document.getElementById("hudLevel"),
-  moves: document.getElementById("moves"),
-  pairs: document.getElementById("pairs"),
-  timer: document.getElementById("timer"),
-  peekBanner: document.getElementById("peekBanner"),
-  bests: document.getElementById("bests"),
-  winTitle: document.getElementById("winTitle"),
-  winEyebrow: document.getElementById("winEyebrow"),
-  winVerse: document.getElementById("winVerse"),
-  winRef: document.getElementById("winRef"),
-  winMoves: document.getElementById("winMoves"),
-  winTime: document.getElementById("winTime"),
-  winBest: document.getElementById("winBest"),
-  nextLevel: document.getElementById("nextLevel"),
-  hintBtn: document.getElementById("hintBtn")
-};
-
-function shuffle(list) {
-  const arr = list.slice();
-  for (let i = arr.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
-}
+const state = { gen: 0, level: 1, deck: [], flipped: [], matched: new Set(), lock: false, moves: 0, startedAt: 0, timerId: null, peekId: null, resolveId: null, watchdogId: null, seconds: 0, hintsLeft: 0, over: false };
+const els = { home: document.getElementById("home"), play: document.getElementById("play"), win: document.getElementById("win"), board: document.getElementById("board"), hud: document.getElementById("hud"), hudLevel: document.getElementById("hudLevel"), moves: document.getElementById("moves"), pairs: document.getElementById("pairs"), timer: document.getElementById("timer"), peekBanner: document.getElementById("peekBanner"), bests: document.getElementById("bests"), winTitle: document.getElementById("winTitle"), winEyebrow: document.getElementById("winEyebrow"), winVerse: document.getElementById("winVerse"), winRef: document.getElementById("winRef"), winMoves: document.getElementById("winMoves"), winTime: document.getElementById("winTime"), winBest: document.getElementById("winBest"), nextLevel: document.getElementById("nextLevel"), hintBtn: document.getElementById("hintBtn") };
+function shuffle(list) { const arr = list.slice(); for (let i = arr.length - 1; i > 0; i -= 1) { const j = Math.floor(Math.random() * (i + 1)); [arr[i], arr[j]] = [arr[j], arr[i]]; } return arr; }
 function cfg() { return LEVELS[state.level] || LEVELS[1]; }
 function pickPairs(count) { return shuffle(VERSES).slice(0, Math.min(count, VERSES.length)); }
-function buildDeck(pairs) {
-  const cards = [];
-  pairs.forEach((verse) => {
-    cards.push({ uid: `${verse.id}-v`, pairId: verse.id, kind: "verse", label: verse.text });
-    cards.push({ uid: `${verse.id}-r`, pairId: verse.id, kind: "ref", label: verse.ref });
-  });
-  return shuffle(cards);
-}
-function formatTime(total) {
-  const safe = Math.max(0, Number(total) || 0);
-  return `${Math.floor(safe / 60)}:${String(safe % 60).padStart(2, "0")}`;
-}
+function buildDeck(pairs) { const cards = []; pairs.forEach((verse) => { cards.push({ uid: `${verse.id}-v`, pairId: verse.id, kind: "verse", label: verse.text }); cards.push({ uid: `${verse.id}-r`, pairId: verse.id, kind: "ref", label: verse.ref }); }); return shuffle(cards); }
+function formatTime(total) { const safe = Math.max(0, Number(total) || 0); return `${Math.floor(safe / 60)}:${String(safe % 60).padStart(2, "0")}`; }
 function bestKey(level) { return `revealer-best-${level}`; }
-function readBest(level) {
-  try { const raw = localStorage.getItem(bestKey(level)); return raw ? JSON.parse(raw) : null; }
-  catch { return null; }
-}
-function writeBest(level, record) {
-  try {
-    const prev = readBest(level);
-    const better = !prev || record.seconds < prev.seconds || (record.seconds === prev.seconds && record.moves < prev.moves);
-    if (better) localStorage.setItem(bestKey(level), JSON.stringify(record));
-    return better;
-  } catch { return false; }
-}
-function renderBests() {
-  if (!els.bests) return;
-  const parts = Object.keys(LEVELS).map((key) => {
-    const best = readBest(key);
-    if (!best) return null;
-    return `L${key} ${LEVELS[key].label}: ${formatTime(best.seconds)} · ${best.moves} moves`;
-  }).filter(Boolean);
-  els.bests.textContent = parts.length ? `Best so far — ${parts.join("  ·  ")}` : "Clear a board to save your best time.";
-}
-function showScreen(name) {
-  els.home.hidden = name !== "home";
-  els.play.hidden = name !== "play";
-  els.win.hidden = name !== "win";
-  els.hud.hidden = name !== "play";
-}
-function lampSvg() {
-  return `<svg class="sigil" viewBox="0 0 64 64" fill="none" aria-hidden="true">
-    <path d="M32 6c-8 10-14 18-14 28a14 14 0 1 0 28 0C46 24 40 16 32 6Z" stroke="#e3b34a" stroke-width="2.4" fill="rgba(227,179,74,0.12)"/>
-    <path d="M24 50h16M27 56h10" stroke="#e3b34a" stroke-width="2.4" stroke-linecap="round"/>
-  </svg>`;
-}
-function escapeText(value) {
-  return String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}
-function renderBoard() {
-  els.board.className = `board cols-${cfg().cols}`;
-  els.board.dataset.count = String(state.deck.length);
-  els.board.innerHTML = "";
-  const frag = document.createDocumentFragment();
-  state.deck.forEach((card) => {
-    const btn = document.createElement("button");
-    btn.className = `card kind-${card.kind}`;
-    btn.type = "button";
-    btn.dataset.uid = card.uid;
-    btn.setAttribute("aria-label", "Hidden card");
-    btn.innerHTML = `<div class="card-inner"><div class="face face-back">${lampSvg()}</div><div class="face face-front"><span class="kind-chip">${card.kind === "verse" ? "Verse" : "Reference"}</span><p class="card-text">${escapeText(card.label)}</p></div></div>`;
-    btn.addEventListener("click", () => onFlip(card.uid));
-    frag.appendChild(btn);
-  });
-  els.board.appendChild(frag);
-}
+function readBest(level) { try { const raw = localStorage.getItem(bestKey(level)); return raw ? JSON.parse(raw) : null; } catch { return null; } }
+function writeBest(level, record) { try { const prev = readBest(level); const better = !prev || record.seconds < prev.seconds || (record.seconds === prev.seconds && record.moves < prev.moves); if (better) localStorage.setItem(bestKey(level), JSON.stringify(record)); return better; } catch { return false; } }
+function renderBests() { if (!els.bests) return; const parts = Object.keys(LEVELS).map((key) => { const best = readBest(key); if (!best) return null; return `L${key} ${LEVELS[key].label}: ${formatTime(best.seconds)} · ${best.moves} moves`; }).filter(Boolean); els.bests.textContent = parts.length ? `Best so far — ${parts.join("  ·  ")}` : "Clear a table to keep your best time."; }
+function showScreen(name) { els.home.hidden = name !== "home"; els.play.hidden = name !== "play"; els.win.hidden = name !== "win"; els.hud.hidden = name !== "play"; }
+function lampSvg() { return `<svg class="sigil" viewBox="0 0 64 64" fill="none" aria-hidden="true"><rect x="8" y="8" width="48" height="48" rx="3" stroke="#f3e6cc" stroke-width="1.6"/><path d="M32 16c-6 8-11 14-11 22a11 11 0 1 0 22 0C43 30 38 24 32 16Z" stroke="#f3e6cc" stroke-width="1.8"/><path d="M25 52h14" stroke="#f3e6cc" stroke-width="1.8" stroke-linecap="round"/></svg>`; }
+function escapeText(value) { return String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+function renderBoard() { els.board.className = `board cols-${cfg().cols}`; els.board.dataset.count = String(state.deck.length); els.board.innerHTML = ""; const frag = document.createDocumentFragment(); state.deck.forEach((card) => { const btn = document.createElement("button"); btn.className = `card kind-${card.kind}`; btn.type = "button"; btn.dataset.uid = card.uid; btn.setAttribute("aria-label", "Hidden card"); btn.innerHTML = `<div class="card-inner"><div class="face face-back">${lampSvg()}</div><div class="face face-front"><span class="kind-chip">${card.kind === "verse" ? "Verse" : "Reference"}</span><p class="card-text">${escapeText(card.label)}</p></div></div>`; btn.addEventListener("click", () => onFlip(card.uid)); frag.appendChild(btn); }); els.board.appendChild(frag); }
 function cardEl(uid) { return els.board.querySelector(`[data-uid="${uid}"]`); }
 function findCard(uid) { return state.deck.find((c) => c.uid === uid) || null; }
-function clearTimers() {
-  if (state.timerId) clearInterval(state.timerId);
-  if (state.peekId) clearTimeout(state.peekId);
-  if (state.resolveId) clearTimeout(state.resolveId);
-  if (state.watchdogId) clearTimeout(state.watchdogId);
-  state.timerId = state.peekId = state.resolveId = state.watchdogId = null;
-}
-function startTimer() {
-  if (state.timerId) clearInterval(state.timerId);
-  state.startedAt = Date.now();
-  state.seconds = 0;
-  els.timer.textContent = "0:00";
-  const gen = state.gen;
-  state.timerId = setInterval(() => {
-    if (gen !== state.gen || state.over) return;
-    state.seconds = Math.floor((Date.now() - state.startedAt) / 1000);
-    els.timer.textContent = formatTime(state.seconds);
-  }, 250);
-}
-function updateHud() {
-  const need = state.deck.length / 2 || 0;
-  els.hudLevel.textContent = String(state.level);
-  els.moves.textContent = String(state.moves);
-  els.pairs.textContent = `${state.matched.size}/${need}`;
-  els.hintBtn.textContent = state.hintsLeft > 0 ? `Hint (${state.hintsLeft})` : "Hint used";
-  els.hintBtn.disabled = state.hintsLeft <= 0 || state.lock || state.over;
-}
-function armWatchdog(gen) {
-  if (state.watchdogId) clearTimeout(state.watchdogId);
-  state.watchdogId = setTimeout(() => {
-    if (gen !== state.gen || state.over) return;
-    if (state.lock) unflip(gen);
-  }, 1600);
-}
+function clearTimers() { if (state.timerId) clearInterval(state.timerId); if (state.peekId) clearTimeout(state.peekId); if (state.resolveId) clearTimeout(state.resolveId); if (state.watchdogId) clearTimeout(state.watchdogId); state.timerId = state.peekId = state.resolveId = state.watchdogId = null; }
+function startTimer() { if (state.timerId) clearInterval(state.timerId); state.startedAt = Date.now(); state.seconds = 0; els.timer.textContent = "0:00"; const gen = state.gen; state.timerId = setInterval(() => { if (gen !== state.gen || state.over) return; state.seconds = Math.floor((Date.now() - state.startedAt) / 1000); els.timer.textContent = formatTime(state.seconds); }, 250); }
+function updateHud() { const need = state.deck.length / 2 || 0; els.hudLevel.textContent = String(state.level); els.moves.textContent = String(state.moves); els.pairs.textContent = `${state.matched.size}/${need}`; els.hintBtn.textContent = state.hintsLeft > 0 ? `Hint (${state.hintsLeft})` : "Hint used"; els.hintBtn.disabled = state.hintsLeft <= 0 || state.lock || state.over; }
+function armWatchdog(gen) { if (state.watchdogId) clearTimeout(state.watchdogId); state.watchdogId = setTimeout(() => { if (gen !== state.gen || state.over) return; if (state.lock) unflip(gen); }, 1600); }
 let audioCtx = null;
-function beep(freq, dur, type = "sine", gain = 0.04) {
-  try {
-    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-    if (audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
-    const osc = audioCtx.createOscillator();
-    const g = audioCtx.createGain();
-    osc.type = type; osc.frequency.value = freq;
-    g.gain.setValueAtTime(Math.max(gain, 0.001), audioCtx.currentTime);
-    osc.connect(g); g.connect(audioCtx.destination);
-    osc.start();
-    g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
-    osc.stop(audioCtx.currentTime + dur + 0.02);
-  } catch {}
-}
-function sfx(kind) {
-  if (kind === "flip") beep(420, 0.07, "triangle", 0.025);
-  if (kind === "match") { beep(523, 0.1, "sine", 0.04); setTimeout(() => beep(659, 0.12, "sine", 0.04), 80); }
-  if (kind === "miss") beep(196, 0.14, "sine", 0.025);
-  if (kind === "win") [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => beep(f, 0.18, "sine", 0.04), i * 110));
-}
-function onFlip(uid) {
-  if (state.lock || state.over) return;
-  const card = findCard(uid);
-  if (!card || state.matched.has(card.pairId)) return;
-  if (state.flipped.includes(uid) || state.flipped.length >= 2) return;
-  const el = cardEl(uid);
-  if (!el) return;
-  el.classList.add("is-flipped");
-  el.setAttribute("aria-label", card.label);
-  state.flipped.push(uid);
-  sfx("flip");
-  if (state.flipped.length === 2) {
-    state.moves += 1; updateHud();
-    const a = findCard(state.flipped[0]);
-    const b = findCard(state.flipped[1]);
-    state.lock = true;
-    const gen = state.gen;
-    if (a && b && a.pairId === b.pairId && a.kind !== b.kind) state.resolveId = setTimeout(() => resolveMatch(a.pairId, gen), 380);
-    else state.resolveId = setTimeout(() => unflip(gen), 850);
-    armWatchdog(gen);
-  }
-}
-function resolveMatch(pairId, gen) {
-  if (gen !== state.gen || state.over) return;
-  state.matched.add(pairId);
-  state.deck.filter((c) => c.pairId === pairId).forEach((c) => {
-    const el = cardEl(c.uid);
-    if (!el) return;
-    el.classList.add("is-matched", "is-flipped");
-    el.disabled = true;
-  });
-  state.flipped = []; state.lock = false;
-  if (state.watchdogId) clearTimeout(state.watchdogId);
-  updateHud(); sfx("match");
-  if (state.matched.size >= state.deck.length / 2) finishGame(gen);
-}
-function unflip(gen) {
-  if (gen !== state.gen) return;
-  state.flipped.forEach((uid) => {
-    const card = findCard(uid);
-    if (card && state.matched.has(card.pairId)) return;
-    const el = cardEl(uid);
-    if (!el) return;
-    el.classList.remove("is-flipped");
-    el.setAttribute("aria-label", "Hidden card");
-  });
-  state.flipped = []; state.lock = false;
-  if (state.watchdogId) clearTimeout(state.watchdogId);
-  updateHud(); sfx("miss");
-}
-function useHint() {
-  if (state.lock || state.over || state.hintsLeft <= 0) return;
-  const hidden = state.deck.filter((c) => !state.matched.has(c.pairId));
-  if (hidden.length < 2) return;
-  const pick = hidden[Math.floor(Math.random() * hidden.length)];
-  const mate = hidden.find((c) => c.pairId === pick.pairId && c.uid !== pick.uid);
-  if (!mate) return;
-  state.hintsLeft -= 1; state.lock = true;
-  const gen = state.gen;
-  [pick, mate].forEach((c) => { const el = cardEl(c.uid); if (el) el.classList.add("is-flipped", "is-hint"); });
-  updateHud();
-  state.resolveId = setTimeout(() => {
-    if (gen !== state.gen) return;
-    [pick, mate].forEach((c) => {
-      const el = cardEl(c.uid);
-      if (el && !state.matched.has(c.pairId)) el.classList.remove("is-flipped", "is-hint");
-    });
-    state.lock = false; updateHud();
-  }, 1200);
-}
-function celebrate() {
-  document.querySelectorAll(".confetti").forEach((n) => n.remove());
-  const layer = document.createElement("div");
-  layer.className = "confetti";
-  const colors = ["#e3b34a", "#f7efe0", "#cfe6e0", "#f3d7c4", "#8fb8ff"];
-  for (let i = 0; i < 36; i += 1) {
-    const bit = document.createElement("i");
-    bit.style.left = `${Math.random() * 100}%`;
-    bit.style.background = colors[i % colors.length];
-    bit.style.animationDelay = `${Math.random() * 0.35}s`;
-    layer.appendChild(bit);
-  }
-  document.body.appendChild(layer);
-  setTimeout(() => layer.remove(), 2000);
-}
-function finishGame(gen) {
-  if (gen !== state.gen || state.over) return;
-  state.over = true; state.lock = true; clearTimers();
-  const record = { seconds: state.seconds, moves: state.moves };
-  const isBest = writeBest(state.level, record);
-  const best = readBest(state.level);
-  const closer = shuffle(state.deck.filter((c) => c.kind === "verse"))[0];
-  els.winEyebrow.textContent = `Level ${state.level} · ${cfg().label}`;
-  els.winTitle.textContent = isBest ? "A new best!" : "The Word is revealed.";
-  els.winVerse.textContent = closer ? `“${closer.label}”` : "";
-  els.winRef.textContent = closer ? (findCard(closer.uid.replace(/-v$/, "-r")) || {}).label || "" : "";
-  els.winMoves.textContent = String(state.moves);
-  els.winTime.textContent = formatTime(state.seconds);
-  els.winBest.textContent = best ? `${formatTime(best.seconds)} · ${best.moves} moves` : "—";
-  const hasNext = Boolean(LEVELS[state.level + 1]);
-  els.nextLevel.hidden = !hasNext;
-  els.nextLevel.textContent = hasNext ? `Next: Level ${state.level + 1} · ${LEVELS[state.level + 1].label}` : "Next level";
-  celebrate(); sfx("win"); showScreen("win");
-}
-function goHome() {
-  clearTimers(); state.over = true; state.lock = false; state.flipped = [];
-  showScreen("home"); renderBests();
-}
-function startGame(level) {
-  const next = Number(level);
-  if (!LEVELS[next]) return;
-  clearTimers();
-  state.gen += 1;
-  const gen = state.gen;
-  state.level = next;
-  state.deck = buildDeck(pickPairs(LEVELS[next].pairs));
-  state.flipped = []; state.matched = new Set(); state.lock = true;
-  state.moves = 0; state.seconds = 0; state.over = false;
-  state.hintsLeft = LEVELS[next].hints;
-  renderBoard(); updateHud(); showScreen("play");
-  if (LEVELS[next].peek > 0) {
-    els.peekBanner.hidden = false;
-    state.deck.forEach((c) => { const el = cardEl(c.uid); if (el) el.classList.add("is-flipped"); });
-    state.peekId = setTimeout(() => {
-      if (gen !== state.gen) return;
-      state.deck.forEach((c) => { const el = cardEl(c.uid); if (el) el.classList.remove("is-flipped"); });
-      els.peekBanner.hidden = true; state.lock = false; updateHud(); startTimer();
-    }, LEVELS[next].peek);
-  } else {
-    els.peekBanner.hidden = true; state.lock = false; updateHud(); startTimer();
-  }
-}
-function paintStars() {
-  const wrap = document.getElementById("stars");
-  if (!wrap) return;
-  const bits = [];
-  for (let i = 0; i < 40; i += 1) bits.push(`<span style="left:${Math.random()*100}%;top:${Math.random()*100}%;opacity:${0.25+Math.random()*0.6}"></span>`);
-  wrap.innerHTML = bits.join("");
-}
+function beep(freq, dur, type = "sine", gain = 0.04) { try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); if (audioCtx.state === "suspended") audioCtx.resume().catch(() => {}); const osc = audioCtx.createOscillator(); const g = audioCtx.createGain(); osc.type = type; osc.frequency.value = freq; g.gain.setValueAtTime(Math.max(gain, 0.001), audioCtx.currentTime); osc.connect(g); g.connect(audioCtx.destination); osc.start(); g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur); osc.stop(audioCtx.currentTime + dur + 0.02); } catch {} }
+function sfx(kind) { if (kind === "flip") beep(420, 0.07, "triangle", 0.025); if (kind === "match") { beep(523, 0.1, "sine", 0.04); setTimeout(() => beep(659, 0.12, "sine", 0.04), 80); } if (kind === "miss") beep(196, 0.14, "sine", 0.025); if (kind === "win") [523, 659, 784, 1046].forEach((f, i) => setTimeout(() => beep(f, 0.18, "sine", 0.04), i * 110)); }
+function onFlip(uid) { if (state.lock || state.over) return; const card = findCard(uid); if (!card || state.matched.has(card.pairId)) return; if (state.flipped.includes(uid) || state.flipped.length >= 2) return; const el = cardEl(uid); if (!el) return; el.classList.add("is-flipped"); el.setAttribute("aria-label", card.label); state.flipped.push(uid); sfx("flip"); if (state.flipped.length === 2) { state.moves += 1; updateHud(); const a = findCard(state.flipped[0]); const b = findCard(state.flipped[1]); state.lock = true; const gen = state.gen; if (a && b && a.pairId === b.pairId && a.kind !== b.kind) state.resolveId = setTimeout(() => resolveMatch(a.pairId, gen), 380); else state.resolveId = setTimeout(() => unflip(gen), 850); armWatchdog(gen); } }
+function resolveMatch(pairId, gen) { if (gen !== state.gen || state.over) return; state.matched.add(pairId); state.deck.filter((c) => c.pairId === pairId).forEach((c) => { const el = cardEl(c.uid); if (!el) return; el.classList.add("is-matched", "is-flipped"); el.disabled = true; }); state.flipped = []; state.lock = false; if (state.watchdogId) clearTimeout(state.watchdogId); updateHud(); sfx("match"); if (state.matched.size >= state.deck.length / 2) finishGame(gen); }
+function unflip(gen) { if (gen !== state.gen) return; state.flipped.forEach((uid) => { const card = findCard(uid); if (card && state.matched.has(card.pairId)) return; const el = cardEl(uid); if (!el) return; el.classList.remove("is-flipped"); el.setAttribute("aria-label", "Hidden card"); }); state.flipped = []; state.lock = false; if (state.watchdogId) clearTimeout(state.watchdogId); updateHud(); sfx("miss"); }
+function useHint() { if (state.lock || state.over || state.hintsLeft <= 0) return; const hidden = state.deck.filter((c) => !state.matched.has(c.pairId)); if (hidden.length < 2) return; const pick = hidden[Math.floor(Math.random() * hidden.length)]; const mate = hidden.find((c) => c.pairId === pick.pairId && c.uid !== pick.uid); if (!mate) return; state.hintsLeft -= 1; state.lock = true; const gen = state.gen; [pick, mate].forEach((c) => { const el = cardEl(c.uid); if (el) el.classList.add("is-flipped", "is-hint"); }); updateHud(); state.resolveId = setTimeout(() => { if (gen !== state.gen) return; [pick, mate].forEach((c) => { const el = cardEl(c.uid); if (el && !state.matched.has(c.pairId)) el.classList.remove("is-flipped", "is-hint"); }); state.lock = false; updateHud(); }, 1200); }
+function celebrate() { document.querySelectorAll(".confetti").forEach((n) => n.remove()); const layer = document.createElement("div"); layer.className = "confetti"; const colors = ["#8f2d22", "#3f4a34", "#e7d9bf", "#c46a3a", "#f3ead8"]; for (let i = 0; i < 36; i += 1) { const bit = document.createElement("i"); bit.style.left = `${Math.random() * 100}%`; bit.style.background = colors[i % colors.length]; bit.style.animationDelay = `${Math.random() * 0.35}s`; layer.appendChild(bit); } document.body.appendChild(layer); setTimeout(() => layer.remove(), 2000); }
+function finishGame(gen) { if (gen !== state.gen || state.over) return; state.over = true; state.lock = true; clearTimers(); const record = { seconds: state.seconds, moves: state.moves }; const isBest = writeBest(state.level, record); const best = readBest(state.level); const closer = shuffle(state.deck.filter((c) => c.kind === "verse"))[0]; els.winEyebrow.textContent = `Level ${state.level} · ${cfg().label}`; els.winTitle.textContent = isBest ? "A new best." : "The cloth is clear."; els.winVerse.textContent = closer ? `“${closer.label}”` : ""; els.winRef.textContent = closer ? (findCard(closer.uid.replace(/-v$/, "-r")) || {}).label || "" : ""; els.winMoves.textContent = String(state.moves); els.winTime.textContent = formatTime(state.seconds); els.winBest.textContent = best ? `${formatTime(best.seconds)} · ${best.moves} moves` : "—"; const hasNext = Boolean(LEVELS[state.level + 1]); els.nextLevel.hidden = !hasNext; els.nextLevel.textContent = hasNext ? `Next: Level ${state.level + 1} · ${LEVELS[state.level + 1].label}` : "Next table"; celebrate(); sfx("win"); showScreen("win"); }
+function goHome() { clearTimers(); state.over = true; state.lock = false; state.flipped = []; showScreen("home"); renderBests(); }
+function startGame(level) { const next = Number(level); if (!LEVELS[next]) return; clearTimers(); state.gen += 1; const gen = state.gen; state.level = next; state.deck = buildDeck(pickPairs(LEVELS[next].pairs)); state.flipped = []; state.matched = new Set(); state.lock = true; state.moves = 0; state.seconds = 0; state.over = false; state.hintsLeft = LEVELS[next].hints; renderBoard(); updateHud(); showScreen("play"); if (LEVELS[next].peek > 0) { els.peekBanner.hidden = false; state.deck.forEach((c) => { const el = cardEl(c.uid); if (el) el.classList.add("is-flipped"); }); state.peekId = setTimeout(() => { if (gen !== state.gen) return; state.deck.forEach((c) => { const el = cardEl(c.uid); if (el) el.classList.remove("is-flipped"); }); els.peekBanner.hidden = true; state.lock = false; updateHud(); startTimer(); }, LEVELS[next].peek); } else { els.peekBanner.hidden = true; state.lock = false; updateHud(); startTimer(); } }
+function paintStars() {}
 document.querySelectorAll("[data-level]").forEach((btn) => btn.addEventListener("click", () => startGame(btn.dataset.level)));
 document.getElementById("restartBtn").addEventListener("click", () => startGame(state.level));
 document.getElementById("homeBtn").addEventListener("click", goHome);
@@ -339,9 +69,4 @@ document.getElementById("winHome").addEventListener("click", goHome);
 document.getElementById("nextLevel").addEventListener("click", () => startGame(state.level + 1));
 document.getElementById("hintBtn").addEventListener("click", useHint);
 paintStars(); renderBests(); showScreen("home");
-(function bootFromQuery() {
-  try {
-    const boot = Number(new URLSearchParams(window.location.search).get("level"));
-    if (LEVELS[boot]) startGame(boot);
-  } catch {}
-})();
+(function bootFromQuery() { try { const boot = Number(new URLSearchParams(window.location.search).get("level")); if (LEVELS[boot]) startGame(boot); } catch {} })();
